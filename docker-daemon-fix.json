@@ -1,0 +1,13 @@
+{
+  "dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"],
+  "registry-mirrors": [
+    "https://mirror.gcr.io",
+    "https://registry-1.docker.io"
+  ],
+  "insecure-registries": [],
+  "debug": false,
+  "experimental": false,
+  "features": {
+    "buildkit": true
+  }
+}

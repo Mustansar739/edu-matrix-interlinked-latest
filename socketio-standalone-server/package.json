@@ -1,0 +1,77 @@
+{
+  "name": "edu-matrix-socketio-server",
+  "version": "1.0.0",
+  "description": "Standalone Socket.IO server for EDU Matrix Interlinked with real-time communication features",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "health": "curl -f http://localhost:3001/health || exit 1",
+    "verify-connections": "node scripts/verify-connections.js",
+    "test:connections": "pnpm run verify-connections",
+    "test:health": "pnpm run health",
+    "install:dev": "pnpm install --frozen-lockfile",
+    "install:prod": "pnpm install --prod --frozen-lockfile",
+    "clean": "rm -rf node_modules pnpm-lock.yaml",
+    "reinstall": "pnpm run clean && pnpm install"
+  },  "dependencies": {
+    "socket.io": "^4.8.1",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "express": "^5.1.0",
+    "cors": "^2.8.5",
+    "helmet": "^8.1.0",
+    "compression": "^1.8.0",
+    "ioredis": "^5.6.1",
+    "kafkajs": "^2.2.4",
+    "pg": "^8.13.1",
+    "jsonwebtoken": "^9.0.2",
+    "joi": "^17.13.3",
+    "dotenv": "^16.5.0",
+    "winston": "^3.15.0",
+    "rate-limiter-flexible": "^7.1.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  },"engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.1",  "pnpm": {
+    "overrides": {
+      "semver": "^7.6.0"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "react": "*"
+      }
+    },
+    "packageExtensions": {
+      "express": {
+        "peerDependencies": {
+          "node": ">=22.0.0"
+        }
+      }
+    }
+  },
+  "keywords": [
+    "socket.io",
+    "real-time",
+    "websockets",
+    "edu-matrix",
+    "interlinked",
+    "chat",
+    "notifications",
+    "file-sharing"
+  ],
+  "author": "EDU Matrix Interlinked Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/edu-matrix/interlinked"
+  },
+  "bugs": {
+    "url": "https://github.com/edu-matrix/interlinked/issues"
+  },
+  "homepage": "https://github.com/edu-matrix/interlinked#readme"
+}

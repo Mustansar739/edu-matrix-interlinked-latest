@@ -1,0 +1,3021 @@
+// // ==========================================
+// // MAIN PRISMA CONFIGURATION
+// // ==========================================
+// // Entry point that coordinates all domain-specific schemas
+
+// generator client {
+//   provider        = "prisma-client-js"
+//   previewFeatures = ["multiSchema"]
+// }
+
+// datasource db {
+//   provider = "postgresql"
+//   url      = env("DATABASE_URL")
+//   schemas  = ["auth_schema", "social_schema", "jobs_schema", "freelancing_schema", "news_schema", "courses_schema", "community_schema", "feedback_schema", "notifications_schema", "statistics_schema", "hub_schema"]
+// }
+
+// // NextAuth Schema and user management (SINGLE SOURCE OF TRUTH)
+// model User {
+//   id                       String                  @id @default(uuid())
+//   email                    String                  @unique
+//   username                 String                  @unique
+//   password                 String
+//   name                     String
+//   role                     UserRoleType            @default(USER)
+//   isVerified               Boolean                 @default(false)
+//   lastLogin                DateTime?
+//   avatar                   String?
+//   bio                      String?
+  
+//   // Educational Context (Consolidated from UserProfile duplicates)
+//   institutionId            String?                 // Current institution affiliation
+//   departmentId             String?                 // Department within institution
+//   studentId                String?                 // Student ID for STUDENT role
+//   employeeId               String?                 // Employee ID for staff roles
+//   parentChildIds           String[]                // Array of child user IDs for PARENT role
+  
+//   // Academic Info (Moved from UserProfile to eliminate duplication)
+//   major                    String?                 // Field of study
+//   graduationYear           Int?                    // Expected/actual graduation year
+//   degree                   String?                 // Degree type (Bachelor's, Master's, etc.)
+//   specialization           String?                 // Area of specialization
+//   academicYear             String?                 // Current academic year for students
+//   qualifications           String[]                // Educational qualifications
+  
+//   // Profile & Contact Info
+//   phoneNumber              String?
+//   dateOfBirth              DateTime?
+//   address                  String?
+//   emergencyContact         String?
+  
+//   // Access Control & Permissions
+//   permissions              String[]                // Dynamic permissions based on role
+//   institutionPermissions   String[]                // Institution-specific permissions
+//   dashboardPreferences     Json?                   // Customizable dashboard settings
+//   accessLevel              AccessLevel             @default(BASIC)
+  
+//   // Role-Based Data Scoping (RBAC Implementation)
+//   managedDepartments       String[]                // Department IDs user can manage (for DEPARTMENT_HEAD)
+//   teachingClasses          String[]                // Class IDs user teaches (for TEACHER)
+//   enrolledClasses          String[]                // Class IDs user enrolled in (for STUDENT)
+//   supervisedStudents       String[]                // Student IDs under supervision (for TEACHER/ADVISOR)
+//   parentOfStudents         String[]                // Student IDs user is parent of (for PARENT)
+  
+//   // Dashboard & UI Permissions
+//   canCreateCourses         Boolean                 @default(false)
+//   canManageGrades          Boolean                 @default(false)
+//   canViewAnalytics         Boolean                 @default(false)
+//   canManageUsers           Boolean                 @default(false)
+//   canAccessReports         Boolean                 @default(false)
+//   canModerateContent       Boolean                 @default(false)
+  
+//   // Data Visibility Settings
+//   dataScope                DataScopeType           @default(SELF)          // What data user can see
+//   institutionScope         String[]                // Institution IDs user has access to
+//   departmentScope          String[]                // Department IDs user has access to
+//   classScope               String[]                // Class IDs user has access to
+  
+//   // Security & Verification
+//   emailVerificationToken   String?
+//   emailVerificationExpires DateTime?
+//   otpToken                 String?
+//   otpExpires               DateTime?
+//   otpAttempts              Int                     @default(0)
+//   otpLastRequest           DateTime?
+//   passwordResetToken       String?
+//   passwordResetExpires     DateTime?
+//   loginCount               Int                     @default(0)
+//   lastFailedLogin          DateTime?
+//   failedAttempts           Int                     @default(0)
+//   lockedUntil              DateTime?
+//   lastActivity             DateTime?
+//   loginAttempts            Int                     @default(0)
+//   lastLoginAttempt         DateTime?
+//   createdAt                DateTime                @default(now())
+//   updatedAt                DateTime                @updatedAt
+//     // Relationships
+//   emailVerifications       EmailVerification[]
+//   passwordResets           PasswordReset[]
+//   sessions                 Session[]
+//   profile                  UserProfile?            @relation("UserToProfile")        // Optional social profile
+//   freelanceProjects        FreelancePost[]         @relation("FreelanceProjectOwner")
+//   newsPosts                NewsPost[]              @relation("NewsPostAuthor")
+//   notificationPreferences  NotificationPreference? @relation("UserNotificationPreferences")
+//   coursePerformances       CoursePerformance[]
+//   educationalContexts      EducationalContext?
+//   studyGroupsCreated       StudyGroup[]            @relation("StudyGroupCreator")
+//   auditLogs                AuditLog[]
+//   roleAssignments          RoleAssignment[]        // Role assignments for this user
+//   institutionMemberships   InstitutionMember[]     @relation("InstitutionMember")
+//   departmentMemberships    DepartmentMember[]
+//   classMemberships         ClassMember[]
+//   teachingAssignments      TeachingAssignment[]
+//   studentEnrollments       StudentEnrollment[]
+//     // ✅ NEW: Proper relations to avoid duplication
+//   studentProfile           Student?                @relation("StudentUser")           // Student academic records
+//   staffProfile             Staff?                  @relation("StaffUser")             // Staff employment records
+  
+//   // ❌ REMOVED CROSS-SCHEMA REFERENCES - Use string IDs only
+//   // institution              Institution?            @relation("InstitutionUsers", fields: [institutionId], references: [id])
+//   // department               Department?             @relation("DepartmentUsers", fields: [departmentId], references: [id])
+//   // Cross-schema relations handled at application level using institutionId/departmentId strings
+
+//   @@schema("simple_auth_schema")
+// }
+
+// // RBAC Models for Educational Role-Based Access Control
+// model RoleAssignment {
+//   id            String    @id @default(uuid())
+//   userId        String
+//   role          UserRoleType
+//   institutionId String?   // Scope: Institution level
+//   departmentId  String?   // Scope: Department level  
+//   classId       String?   // Scope: Class level
+//   startDate     DateTime  @default(now())
+//   endDate       DateTime?
+//   isActive      Boolean   @default(true)
+//   assignedBy    String    // User ID who assigned this role
+//   createdAt     DateTime  @default(now())
+//   updatedAt     DateTime  @updatedAt
+  
+//   user          User      @relation(fields: [userId], references: [id])
+  
+//   @@unique([userId, role, institutionId, departmentId, classId])
+//   @@schema("simple_auth_schema")
+// }
+
+// model InstitutionMember {
+//   id            String                @id @default(uuid())
+//   userId        String
+//   institutionId String
+//   role          InstitutionRoleType   @default(MEMBER)
+//   permissions   String[]              // Institution-specific permissions
+//   joinedAt      DateTime              @default(now())
+//   isActive      Boolean               @default(true)
+  
+//   user          User                  @relation("InstitutionMember", fields: [userId], references: [id])
+//   institution   Institution           @relation("InstitutionMembers", fields: [institutionId], references: [id])
+  
+//   @@unique([userId, institutionId])
+//   @@schema("simple_auth_schema")
+// }
+
+// model DepartmentMember {
+//   id            String              @id @default(uuid())
+//   userId        String
+//   departmentId  String
+//   role          DepartmentRoleType  @default(MEMBER)
+//   permissions   String[]            // Department-specific permissions
+//   joinedAt      DateTime            @default(now())
+//   isActive      Boolean             @default(true)
+  
+//   user          User                @relation(fields: [userId], references: [id])
+//   department    Department          @relation(fields: [departmentId], references: [id])
+  
+//   @@unique([userId, departmentId])
+//   @@schema("simple_auth_schema")
+// }
+
+// model ClassMember {
+//   id          String        @id @default(uuid())
+//   userId      String
+//   classId     String
+//   role        ClassRoleType @default(STUDENT)
+//   joinedAt    DateTime      @default(now())
+//   isActive    Boolean       @default(true)
+  
+//   user        User          @relation(fields: [userId], references: [id])
+//   class       Course        @relation(fields: [classId], references: [id])
+  
+//   @@unique([userId, classId])
+//   @@schema("simple_auth_schema")
+// }
+
+// model TeachingAssignment {
+//   id          String     @id @default(uuid())
+//   teacherId   String     // User ID with TEACHER role
+//   classId     String     // Course/Class ID
+//   subject     String?    // Subject being taught
+//   startDate   DateTime   @default(now())
+//   endDate     DateTime?
+//   isActive    Boolean    @default(true)
+  
+//   teacher     User       @relation(fields: [teacherId], references: [id])
+//   class       Course     @relation(fields: [classId], references: [id])
+  
+//   @@unique([teacherId, classId])
+//   @@schema("simple_auth_schema")
+// }
+
+// model StudentEnrollment {
+//   id          String     @id @default(uuid())
+//   studentId   String     // User ID with STUDENT role
+//   classId     String     // Course/Class ID
+//   enrollDate  DateTime   @default(now())
+//   status      StudentEnrollmentStatus @default(ACTIVE)
+//   grade       String?    // Current grade in class
+  
+//   student     User       @relation(fields: [studentId], references: [id])
+//   class       Course     @relation(fields: [classId], references: [id])
+  
+//   @@unique([studentId, classId])
+//   @@schema("simple_auth_schema")
+// }
+
+// model Session {
+//   id        String   @id @default(uuid())
+//   userId    String
+//   token     String   @unique
+//   expires   DateTime
+//   userAgent String?
+//   ipAddress String?
+//   isValid   Boolean  @default(true)
+//   createdAt DateTime @default(now())
+//   user      User     @relation(fields: [userId], references: [id])
+
+//   @@schema("simple_auth_schema")
+// }
+
+// model PasswordReset {
+//   id        String    @id @default(uuid())
+//   userId    String
+//   token     String    @unique
+//   expires   DateTime
+//   usedAt    DateTime?
+//   createdAt DateTime  @default(now())
+//   user      User      @relation(fields: [userId], references: [id])
+
+//   @@schema("simple_auth_schema")
+// }
+
+// model EmailVerification {
+//   id        String    @id @default(uuid())
+//   userId    String
+//   token     String    @unique
+//   expires   DateTime
+//   usedAt    DateTime?
+//   createdAt DateTime  @default(now())
+//   user      User      @relation(fields: [userId], references: [id])
+
+//   @@schema("simple_auth_schema")
+// }
+
+// model AuthAttempt {
+//   id        String            @id @default(uuid())
+//   email     String
+//   userAgent String?
+//   status    AuthAttemptStatus
+//   createdAt DateTime          @default(now())
+//   userId    String?
+
+//   @@schema("simple_auth_schema")
+// }
+
+// model AuditLog {
+//   id            String      @id @default(uuid())
+//   institutionId String
+//   userId        String
+//   action        String
+//   resourceType  String
+//   resourceId    String
+//   metadata      Json?
+//   ipAddress     String?
+//   userAgent     String?
+//   timestamp     DateTime    @default(now())
+//   user          User        @relation(fields: [userId], references: [id])
+//   institution   Institution @relation(fields: [institutionId], references: [id])
+
+//   @@schema("simple_auth_schema")
+// }
+
+// // Social Media Profile Extension (Optional - only for social features)
+// model UserProfile {
+//   id                  String               @id @default(uuid())
+//   userId              String               @unique
+  
+//   // REMOVED DUPLICATED FIELDS: email, username, name, avatar, bio, institutionId, specialization
+//   // These are now only in User model to eliminate duplication
+  
+//   // Social-specific fields only
+//   displayName         String?              // Optional display name for social media
+//   coverImage          String?
+//   socialLinks         Json?                // Social media links
+//   visibility          ProfileVisibility    @default(PUBLIC)
+//   allowMessages       Boolean              @default(true)
+//   showActivity        Boolean              @default(true)
+  
+//   // Social platform relationships
+//   createdAt           DateTime             @default(now())
+//   updatedAt           DateTime             @default(now())
+//   user                User                 @relation("UserToProfile", fields: [userId], references: [id])
+//   bookmarks           Bookmark[]
+//   bookmarkCollections BookmarkCollection[]
+//   certificates        Certificate[]
+//   comments            Comment[]
+//   drafts              Draft[]
+//   followers           Follow[]             @relation("Follower")
+//   following           Follow[]             @relation("Following")
+//   friendsAsFollower   Friend[]             @relation("FriendFollower")
+//   friendsAsFollowing  Friend[]             @relation("FriendFollowing")
+//   likes               Like[]
+//   posts               Post[]
+//   analyticsData       ProfileAnalytics?
+//   shares              Share[]
+//   skills              Skill[]
+//   stories             Story[]
+//   storyReactions      StoryReaction[]
+//   storyReplies        StoryReply[]
+//   storyShares         StoryShare[]
+//   storyViews          StoryView[]
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model Follow {
+//   id          String      @id @default(uuid())
+//   followerId  String
+//   followingId String
+//   createdAt   DateTime    @default(now())
+//   follower    UserProfile @relation("Follower", fields: [followerId], references: [id])
+//   following   UserProfile @relation("Following", fields: [followingId], references: [id])
+
+//   @@unique([followerId, followingId])
+//   @@schema("students_social_platform_schema")
+// }
+
+// model Friend {
+//   id          String      @id @default(uuid())
+//   followerId  String
+//   followingId String
+//   createdAt   DateTime    @default(now())
+//   follower    UserProfile @relation("FriendFollower", fields: [followerId], references: [id])
+//   following   UserProfile @relation("FriendFollowing", fields: [followingId], references: [id])
+
+//   @@unique([followerId, followingId])
+//   @@schema("students_social_platform_schema")
+// }
+
+// model Skill {
+//   id        String      @id @default(uuid())
+//   name      String
+//   level     SkillLevel
+//   userId    String
+//   createdAt DateTime    @default(now())
+//   user      UserProfile @relation(fields: [userId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model Certificate {
+//   id         String      @id @default(uuid())
+//   name       String
+//   issuer     String
+//   issueDate  DateTime
+//   expiryDate DateTime?
+//   userId     String
+//   createdAt  DateTime    @default(now())
+//   user       UserProfile @relation(fields: [userId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model Share {
+//   id        String      @id @default(uuid())
+//   postId    String
+//   userId    String
+//   createdAt DateTime    @default(now())
+//   post      Post        @relation(fields: [postId], references: [id])
+//   user      UserProfile @relation(fields: [userId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model Bookmark {
+//   id           String              @id @default(uuid())
+//   postId       String
+//   userId       String
+//   createdAt    DateTime            @default(now())
+//   collectionId String?
+//   collection   BookmarkCollection? @relation(fields: [collectionId], references: [id])
+//   post         Post                @relation(fields: [postId], references: [id])
+//   user         UserProfile         @relation(fields: [userId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model StoryView {
+//   id            String      @id @default(uuid())
+//   storyId       String
+//   userId        String
+//   viewCount     Int         @default(1)
+//   totalDuration Int         @default(0)
+//   lastViewedAt  DateTime    @default(now())
+//   createdAt     DateTime    @default(now())
+//   story         Story       @relation(fields: [storyId], references: [id])
+//   user          UserProfile @relation(fields: [userId], references: [id])
+
+//   @@unique([storyId, userId], name: "storyId_userId")
+//   @@schema("students_social_platform_schema")
+// }
+
+// model StoryReaction {
+//   id        String      @id @default(uuid())
+//   storyId   String
+//   userId    String
+//   type      String
+//   createdAt DateTime    @default(now())
+//   story     Story       @relation(fields: [storyId], references: [id])
+//   user      UserProfile @relation(fields: [userId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model StoryReply {
+//   id        String      @id @default(uuid())
+//   storyId   String
+//   userId    String
+//   content   String
+//   createdAt DateTime    @default(now())
+//   story     Story       @relation(fields: [storyId], references: [id])
+//   user      UserProfile @relation(fields: [userId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model StoryShare {
+//   id        String      @id @default(uuid())
+//   storyId   String
+//   userId    String
+//   createdAt DateTime    @default(now())
+//   story     Story       @relation(fields: [storyId], references: [id])
+//   user      UserProfile @relation(fields: [userId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model Story {
+//   id             String            @id @default(uuid())
+//   authorId       String
+//   mediaUrl       String
+//   caption        String?
+//   location       String?
+//   duration       Int               @default(15)
+//   allowReplies   Boolean           @default(true)
+//   allowSharing   Boolean           @default(true)
+//   hidden         Boolean           @default(false)
+//   shareCount     Int               @default(0)
+//   viewCount      Int               @default(0)
+//   analyticsId    String?
+//   potentialReach Int               @default(0)
+//   expiresAt      DateTime
+//   createdAt      DateTime          @default(now())
+//   updatedAt      DateTime          @default(now())
+//   analytics      ContentAnalytics? @relation(fields: [analyticsId], references: [id])
+//   author         UserProfile       @relation(fields: [authorId], references: [id])
+//   metrics        StoryCount?       @relation("StoryToMetrics")
+//   reactions      StoryReaction[]
+//   replies        StoryReply[]
+//   shares         StoryShare[]
+//   views          StoryView[]
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model StoryCount {
+//   id        String @id @default(uuid())
+//   storyId   String @unique
+//   views     Int    @default(0)
+//   reactions Int    @default(0)
+//   replies   Int    @default(0)
+//   shares    Int    @default(0)
+//   story     Story  @relation("StoryToMetrics", fields: [storyId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// // ==========================================
+// // UNIFIED POST SYSTEM - CORE MODELS
+// // ==========================================
+// // Single post system for all modules: Student Social, Jobs, Freelancing, News, Courses
+// // Each module extends base Post with specific data in separate tables
+
+// enum PostType {
+//   STUDENT_SOCIAL    // Regular social posts by students
+//   NEWS_ARTICLE      // Educational news and articles
+//   JOB_LISTING       // Job opportunities
+//   FREELANCE_PROJECT // Freelancing projects
+//   COURSE_CONTENT    // Course-related posts
+//   COMMUNITY_UPDATE  // Community announcements
+//   STUDY_GROUP       // Study group posts
+//   EVENT_ANNOUNCEMENT // Events and activities
+//   ACHIEVEMENT       // Student achievements
+//   POLL              // Polls and surveys
+// }
+
+// enum PostStatus {
+//   DRAFT
+//   PUBLISHED
+//   ARCHIVED
+//   EXPIRED
+//   SUSPENDED
+// }
+
+// enum PostVisibility {
+//   PUBLIC           // Visible to everyone
+//   INSTITUTION_ONLY // Only institution members
+//   DEPARTMENT_ONLY  // Only department members
+//   CLASS_ONLY       // Only class members
+//   FRIENDS_ONLY     // Only connections/friends
+//   PRIVATE          // Only author
+// }
+
+// // ==========================================
+// // USER RELATIONSHIP EXTENSIONS FOR POSTS
+// // ==========================================
+// // Each module has its own Post model, these are shared User relations
+
+// // UNIFIED ENGAGEMENT MODELS
+// model PostLike {
+//   id        String    @id @default(uuid())
+//   postId    String
+//   userId    String
+//   reaction  String    @default("like") // like, love, laugh, etc.
+//   createdAt DateTime  @default(now())
+  
+//   post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+//   user      User      @relation("UserPostLikes", fields: [userId], references: [id])
+  
+//   @@unique([postId, userId])
+//   @@schema("simple_auth_schema")
+// }
+
+// model PostComment {
+//   id        String         @id @default(uuid())
+//   postId    String
+//   userId    String
+//   parentId  String?        // For nested comments/replies
+//   content   String
+//   mediaUrls String[]       // Images/videos in comments
+//   edited    Boolean        @default(false)
+//   createdAt DateTime       @default(now())
+//   updatedAt DateTime       @updatedAt
+  
+//   post      Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+//   user      User           @relation("UserPostComments", fields: [userId], references: [id])
+//   parent    PostComment?   @relation("CommentReplies", fields: [parentId], references: [id])
+//   replies   PostComment[]  @relation("CommentReplies")
+  
+//   @@schema("simple_auth_schema")
+// }
+
+// model PostShare {
+//   id        String   @id @default(uuid())
+//   postId    String
+//   userId    String
+//   caption   String?  // User's comment when sharing
+//   createdAt DateTime @default(now())
+  
+//   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+//   user      User     @relation("UserPostShares", fields: [userId], references: [id])
+  
+//   @@unique([postId, userId])
+//   @@schema("simple_auth_schema")
+// }
+
+// model PostBookmark {
+//   id        String   @id @default(uuid())
+//   postId    String
+//   userId    String
+//   createdAt DateTime @default(now())
+  
+//   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+//   user      User     @relation("UserPostBookmarks", fields: [userId], references: [id])
+  
+//   @@unique([postId, userId])
+//   @@schema("simple_auth_schema")
+// }
+
+// model PostReport {
+//   id        String     @id @default(uuid())
+//   postId    String
+//   userId    String
+//   reason    String     // spam, inappropriate, etc.
+//   details   String?
+//   status    String     @default("pending") // pending, reviewed, resolved
+//   createdAt DateTime   @default(now())
+  
+//   post      Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+//   user      User       @relation("UserPostReports", fields: [userId], references: [id])
+  
+//   @@unique([postId, userId])
+//   @@schema("simple_auth_schema")
+// }
+
+// model Comment {
+//   id        String      @id @default(uuid())
+//   postId    String
+//   authorId  String
+//   content   String
+//   createdAt DateTime    @default(now())
+//   updatedAt DateTime    @default(now())
+//   author    UserProfile @relation(fields: [authorId], references: [id])
+//   post      Post        @relation(fields: [postId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model Like {
+//   id        String      @id @default(uuid())
+//   postId    String
+//   userId    String
+//   createdAt DateTime    @default(now())
+//   post      Post        @relation(fields: [postId], references: [id])
+//   user      UserProfile @relation(fields: [userId], references: [id])
+
+//   @@unique([postId, userId])
+//   @@schema("students_social_platform_schema")
+// }
+
+// model StudyGroup {
+//   id          String               @id @default(uuid())
+//   name        String
+//   description String
+//   courseId    String?
+//   subjectId   String?
+//   creatorId   String
+//   visibility  GroupVisibility      @default(PRIVATE)
+//   joinType    JoinType             @default(REQUEST)
+//   createdAt   DateTime             @default(now())
+//   updatedAt   DateTime             @default(now())
+//   creator     User                 @relation("StudyGroupCreator", fields: [creatorId], references: [id])
+//   events      StudyGroupEvent[]
+//   members     StudyGroupMember[]
+//   posts       StudyGroupPost[]
+//   resources   StudyGroupResource[]
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model StudyGroupMember {
+//   id       String     @id @default(uuid())
+//   groupId  String
+//   userId   String
+//   role     String     @default("member")
+//   joinedAt DateTime   @default(now())
+//   group    StudyGroup @relation(fields: [groupId], references: [id])
+
+//   @@unique([groupId, userId])
+//   @@schema("students_social_platform_schema")
+// }
+
+// model StudyGroupPost {
+//   id        String     @id @default(uuid())
+//   groupId   String
+//   authorId  String
+//   content   String
+//   createdAt DateTime   @default(now())
+//   group     StudyGroup @relation(fields: [groupId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model StudyGroupResource {
+//   id        String     @id @default(uuid())
+//   groupId   String
+//   title     String
+//   type      String
+//   url       String
+//   createdAt DateTime   @default(now())
+//   group     StudyGroup @relation(fields: [groupId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model StudyGroupEvent {
+//   id          String     @id @default(uuid())
+//   groupId     String
+//   title       String
+//   description String
+//   startDate   DateTime
+//   endDate     DateTime?
+//   createdAt   DateTime   @default(now())
+//   group       StudyGroup @relation(fields: [groupId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model EducationalContext {
+//   id                 String            @id @default(uuid())
+//   userId             String            @unique
+//   currentStatus      AcademicStatus    @default(ENROLLED)
+//   enrollmentYear     Int
+//   expectedGraduation Int?
+//   gpa                Float?
+//   credits            Int               @default(0)
+//   academicStanding   AcademicStanding  @default(GOOD)
+//   createdAt          DateTime          @default(now())
+//   updatedAt          DateTime          @default(now())
+//   user               User              @relation(fields: [userId], references: [id])
+//   learningGoals      LearningGoal[]
+//   studyPreferences   StudyPreference[]
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model StudyPreference {
+//   id                 String             @id @default(uuid())
+//   contextId          String
+//   preferredTime      String[]
+//   environment        String[]
+//   learningStyles     LearningStyle[]
+//   createdAt          DateTime           @default(now())
+//   updatedAt          DateTime           @default(now())
+//   educationalContext EducationalContext @relation(fields: [contextId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model LearningGoal {
+//   id                 String             @id @default(uuid())
+//   contextId          String
+//   title              String
+//   description        String
+//   targetDate         DateTime?
+//   status             GoalStatus         @default(ACTIVE)
+//   courseId           String?
+//   skillIds           String[]
+//   progress           Int                @default(0)
+//   createdAt          DateTime           @default(now())
+//   updatedAt          DateTime           @default(now())
+//   educationalContext EducationalContext @relation(fields: [contextId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model ProfileAnalytics {
+//   id             String      @id @default(uuid())
+//   profileId      String      @unique
+//   totalPosts     Int         @default(0)
+//   totalLikes     Int         @default(0)
+//   totalComments  Int         @default(0)
+//   totalShares    Int         @default(0)
+//   followers      Int         @default(0)
+//   following      Int         @default(0)
+//   friends        Int         @default(0)
+//   activityHours  Json
+//   postFrequency  Json
+//   engagement     Json
+//   academicPosts  Int         @default(0)
+//   studyGroups    Int         @default(0)
+//   courseActivity Json
+//   createdAt      DateTime    @default(now())
+//   updatedAt      DateTime    @default(now())
+//   profile        UserProfile @relation(fields: [profileId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model ContentAnalytics {
+//   id            String   @id @default(uuid())
+//   postId        String?  @unique
+//   views         Int      @default(0)
+//   uniqueViews   Int      @default(0)
+//   avgTimeViewed Float    @default(0)
+//   likes         Int      @default(0)
+//   comments      Int      @default(0)
+//   shares        Int      @default(0)
+//   saves         Int      @default(0)
+//   reach         Int      @default(0)
+//   impressions   Int      @default(0)
+//   viralCoeff    Float    @default(0)
+//   viewerStats   Json
+//   engagerStats  Json
+//   createdAt     DateTime @default(now())
+//   updatedAt     DateTime @default(now())
+//   post          Post?    @relation(fields: [postId], references: [id])
+//   stories       Story[]
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model BookmarkCollection {
+//   id          String      @id @default(uuid())
+//   name        String
+//   description String?
+//   isPrivate   Boolean     @default(false)
+//   userId      String
+//   createdAt   DateTime    @default(now())
+//   updatedAt   DateTime    @updatedAt
+//   bookmarks   Bookmark[]
+//   user        UserProfile @relation(fields: [userId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model Draft {
+//   id        String      @id @default(uuid())
+//   type      String
+//   content   String
+//   mediaUrls String[]
+//   caption   String?
+//   location  String?
+//   authorId  String
+//   isDraft   Boolean     @default(true)
+//   createdAt DateTime    @default(now())
+//   updatedAt DateTime    @default(now())
+//   author    UserProfile @relation(fields: [authorId], references: [id])
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// model Institution {
+//   id                  String                   @id @default(uuid())
+//   name                String
+//   type                InstitutionType
+//   status              InstitutionStatus        @default(ACTIVE)
+//   email               String                   @unique
+//   phone               String
+//   address             String
+//   city                String
+//   state               String?
+//   country             String
+//   website             String?
+//   settings            Json
+//   features            String[]
+//   timezone            String                   @default("UTC")
+//   locale              String                   @default("en")
+//   quotas              Json
+//   subscription        SubscriptionTier
+//   validUntil          DateTime
+//   createdAt           DateTime                 @default(now())
+//   updatedAt           DateTime                 @updatedAt
+//   logo                String?
+//   theme               Json?
+//   branding            Json?
+//   apiKeys             ApiKey[]
+//   courses             Course[]
+//   departments         Department[]
+//   analytics           InstitutionalAnalytics[]
+//   integrations        ModuleIntegration[]
+//   programs            Program[]
+//   staff               Staff[]
+//   students            Student[]
+//   TenantSchema        TenantSchema?
+//   webhooks            Webhook[]
+//   auditLogs           AuditLog[]
+//   academicMetrics     AcademicMetrics[]
+//   efficiencyMetrics   EfficiencyMetrics[]
+//   engagementMetrics   EngagementMetrics[]
+//   metrics             EnrollmentMetrics[]
+//   expenseMetrics      ExpenseMetrics[]
+//   facultyMetrics      FacultyMetrics[]
+//   performances        InstitutionPerformance[]
+//   resourceMetrics     ResourceMetrics[]
+//   revenueMetrics      RevenueMetrics[]
+//   satisfactionMetrics SatisfactionMetrics[]
+  
+//   // ❌ REMOVED CROSS-SCHEMA USER RELATION - Use application-level joins
+//   // users               User[]                   @relation("InstitutionUsers")     
+//   members             InstitutionMember[]      @relation("InstitutionMembers")   // Institution membership details
+//   applications        InstitutionApplication[] @relation("InstitutionApplications")
+//   enrollments         InstitutionEnrollment[]  @relation("InstitutionEnrollments")
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// // 🏫 Institution Application & Enrollment System (Complete Flow)
+// model InstitutionApplication {
+//   id                    String                    @id @default(uuid())
+//   applicantUserId       String                    // References User from simple_auth_schema
+//   institutionId         String
+//   status                InstitutionApplicationStatus @default(PENDING)
+//   applicationData       Json                      // Student application form data
+  
+//   // Application Processing
+//   reviewedByUserId      String?                   // Admin who reviewed
+//   reviewedAt            DateTime?
+//   reviewNotes           String?
+//   rejectionReason       String?
+  
+//   submittedAt           DateTime                  @default(now())
+//   createdAt             DateTime                  @default(now())
+//   updatedAt             DateTime                  @updatedAt
+  
+//   // Relations
+//   institution           Institution               @relation("InstitutionApplications", fields: [institutionId], references: [id])
+//   enrollment            InstitutionEnrollment?    // Created when accepted
+  
+//   @@unique([applicantUserId, institutionId])
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model InstitutionEnrollment {
+//   id                    String                    @id @default(uuid())
+//   studentUserId         String                    // References User from simple_auth_schema
+//   institutionId         String
+//   applicationId         String                    @unique
+//   studentId             String                    // Institution student ID
+//   status                EnrollmentStatus          @default(ENROLLED)
+//   enrolledAt            DateTime                  @default(now())
+//   createdAt             DateTime                  @default(now())
+//   updatedAt             DateTime                  @updatedAt
+  
+//   // Relations
+//   institution           Institution              @relation("InstitutionEnrollments", fields: [institutionId], references: [id])
+//   application           InstitutionApplication   @relation(fields: [applicationId], references: [id])
+  
+//   @@unique([institutionId, studentId])
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model Department {
+//   id            String             @id @default(uuid())
+//   institutionId String
+//   name          String
+//   code          String
+//   headId        String?
+//   createdAt     DateTime           @default(now())
+//   updatedAt     DateTime           @default(now())
+  
+//   // Relationships
+//   courses       Course[]           @relation("DepartmentCourses")
+//   institution   Institution        @relation(fields: [institutionId], references: [id])
+//   staff         Staff[]
+//   users         User[]             @relation("DepartmentUsers")        // Users affiliated with this department
+//   members       DepartmentMember[] // Department membership details
+
+//   @@unique([institutionId, code])
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model Program {
+//   id            String               @id @default(uuid())
+//   institutionId String
+//   name          String
+//   code          String
+//   type          ProgramType
+//   duration      Int
+//   description   String
+//   createdAt     DateTime             @default(now())
+//   updatedAt     DateTime             @default(now())
+//   assignments   Assignment[]         @relation("ProgramAssignments")
+//   attendance    Attendance[]         @relation("ProgramAttendance")
+//   courses       Course[]
+//   instructors   CourseInstructor[]   @relation("ProgramInstructors")
+//   examinations  Examination[]        @relation("ProgramExams")
+//   institution   Institution          @relation(fields: [institutionId], references: [id])
+//   requirements  ProgramRequirement[]
+//   students      Student[]            @relation("StudentProgram")
+
+//   @@unique([institutionId, code])
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model Course {
+//   id            String             @id @default(uuid())
+//   institutionId String
+//   code          String
+//   name          String
+//   description   String
+//   departmentId  String
+//   programId     String
+//   credits       Int
+//   createdAt     DateTime           @default(now())
+//   updatedAt     DateTime           @default(now())
+  
+//   // Relationships
+//   assignments   Assignment[]
+//   attendance    Attendance[]
+//   department    Department         @relation("DepartmentCourses", fields: [departmentId], references: [id])
+//   institution   Institution        @relation(fields: [institutionId], references: [id])
+//   program       Program            @relation(fields: [programId], references: [id])
+//   instructors   CourseInstructor[]
+//   examinations  Examination[]
+//   grades        Grade[]
+//   schedule      Schedule[]
+  
+//   // Class-related relationships (fixing class references)
+//   classMembers       ClassMember[]       // Students enrolled in this course
+//   teachingAssignments TeachingAssignment[] // Teachers assigned to this course
+//   studentEnrollments  StudentEnrollment[]  // Student enrollment records
+
+//   @@unique([institutionId, code])
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model Schedule {
+//   id        String   @id @default(uuid())
+//   courseId  String
+//   dayOfWeek Int
+//   startTime DateTime @db.Time(6)
+//   endTime   DateTime @db.Time(6)
+//   room      String
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+//   course    Course   @relation(fields: [courseId], references: [id])
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model CourseInstructor {
+//   id        String       @id @default(uuid())
+//   courseId  String
+//   staffId   String
+//   role      TeachingRole @default(PRIMARY)
+//   programId String
+//   startDate DateTime
+//   endDate   DateTime?
+//   course    Course       @relation(fields: [courseId], references: [id])
+//   program   Program      @relation("ProgramInstructors", fields: [programId], references: [id])
+//   staff     Staff        @relation(fields: [staffId], references: [id])
+
+//   @@unique([courseId, staffId])
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// // 🎓 Student Context (References User - No Data Duplication)
+// model Student {
+//   id            String                 @id @default(uuid())
+//   userId        String                 @unique              // ✅ Reference to User model
+//   institutionId String
+//   studentId     String                               // Institution-specific student ID
+//   programId     String?
+//   year          Int?
+//   semester      Int?
+//   status        StudentStatus          @default(ACTIVE)
+//   enrollmentDate DateTime              @default(now())
+//   graduationDate DateTime?
+  
+//   // ✅ REMOVED DUPLICATED FIELDS: name, email, phone, address, dateOfBirth
+//   // These are now only in User model
+  
+//   // Academic records and relationships
+//   createdAt     DateTime               @default(now())
+//   updatedAt     DateTime               @default(now())
+//   assignments   AssignmentSubmission[]
+//   attendance    Attendance[]
+//   examResults   ExamResult[]
+//   grades        Grade[]
+//   payments      Payment[]
+//   scholarships  ScholarshipAward[]
+  
+//   // Proper relations
+//   user          User                   @relation("StudentUser", fields: [userId], references: [id])
+//   institution   Institution            @relation(fields: [institutionId], references: [id])
+//   program       Program?               @relation("StudentProgram", fields: [programId], references: [id])
+
+//   @@unique([institutionId, studentId])
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// // 👨‍🏫 Staff Context (References User - No Data Duplication)
+// model Staff {
+//   id                String             @id @default(uuid())
+//   userId            String             @unique              // ✅ Reference to User model
+//   institutionId     String
+//   departmentId      String
+//   employeeId        String                                 // Institution-specific employee ID
+//   role              StaffRole
+//   status            StaffStatus        @default(ACTIVE)
+//   hireDate          DateTime           @default(now())
+//   contractType      String?                               // Full-time, Part-time, Contract
+  
+//   // ✅ REMOVED DUPLICATED FIELDS: All user data now in User model
+//   // Keeping only employment-specific data here
+  
+//   createdAt         DateTime           @default(now())
+//   updatedAt         DateTime           @default(now())
+//   courseInstructors CourseInstructor[]
+  
+//   // Proper relations
+//   user              User               @relation("StaffUser", fields: [userId], references: [id])
+//   department        Department         @relation(fields: [departmentId], references: [id])
+//   institution       Institution        @relation(fields: [institutionId], references: [id])
+
+//   @@unique([institutionId, employeeId])
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model Attendance {
+//   id        String           @id @default(uuid())
+//   courseId  String
+//   studentId String
+//   date      DateTime         @db.Date
+//   status    AttendanceStatus
+//   note      String?
+//   programId String
+//   markedAt  DateTime         @default(now())
+//   updatedAt DateTime         @default(now())
+//   course    Course           @relation(fields: [courseId], references: [id])
+//   program   Program          @relation("ProgramAttendance", fields: [programId], references: [id])
+//   student   Student          @relation(fields: [studentId], references: [id])
+
+//   @@unique([courseId, studentId, date])
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model Grade {
+//   id        String    @id @default(uuid())
+//   studentId String
+//   courseId  String
+//   type      GradeType
+//   score     Float
+//   maxScore  Float
+//   weight    Float
+//   feedback  String?
+//   gradedAt  DateTime  @default(now())
+//   updatedAt DateTime  @default(now())
+//   course    Course    @relation(fields: [courseId], references: [id])
+//   student   Student   @relation(fields: [studentId], references: [id])
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model Examination {
+//   id           String       @id @default(uuid())
+//   courseId     String
+//   title        String
+//   description  String
+//   type         ExamType
+//   totalMarks   Float
+//   duration     Int
+//   programId    String
+//   questions    Json
+//   answers      Json?
+//   scheduledFor DateTime
+//   status       ExamStatus   @default(UPCOMING)
+//   createdAt    DateTime     @default(now())
+//   updatedAt    DateTime     @default(now())
+//   results      ExamResult[]
+//   course       Course       @relation(fields: [courseId], references: [id])
+//   program      Program      @relation("ProgramExams", fields: [programId], references: [id])
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model ExamResult {
+//   id           String           @id @default(uuid())
+//   examId       String
+//   studentId    String
+//   answers      Json
+//   score        Float
+//   feedback     String?
+//   status       SubmissionStatus @default(SUBMITTED)
+//   aiGraded     Boolean          @default(false)
+//   aiScore      Float?
+//   aiConfidence Float?
+//   submittedAt  DateTime         @default(now())
+//   gradedAt     DateTime?
+//   exam         Examination      @relation(fields: [examId], references: [id])
+//   student      Student          @relation(fields: [studentId], references: [id])
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model Assignment {
+//   id          String                 @id @default(uuid())
+//   courseId    String
+//   title       String
+//   description String
+//   dueDate     DateTime
+//   totalMarks  Float
+//   programId   String
+//   createdAt   DateTime               @default(now())
+//   updatedAt   DateTime               @default(now())
+//   course      Course                 @relation(fields: [courseId], references: [id])
+//   program     Program                @relation("ProgramAssignments", fields: [programId], references: [id])
+//   submissions AssignmentSubmission[]
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model AssignmentSubmission {
+//   id           String           @id @default(uuid())
+//   assignmentId String
+//   studentId    String
+//   content      String
+//   attachments  String[]
+//   score        Float?
+//   feedback     String?
+//   status       SubmissionStatus @default(SUBMITTED)
+//   submittedAt  DateTime         @default(now())
+//   gradedAt     DateTime?
+//   assignment   Assignment       @relation(fields: [assignmentId], references: [id])
+//   student      Student          @relation(fields: [studentId], references: [id])
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model ProgramRequirement {
+//   id          String   @id @default(uuid())
+//   programId   String
+//   type        String
+//   description String
+//   credits     Int
+//   courses     String[]
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @default(now())
+//   program     Program  @relation(fields: [programId], references: [id])
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model ScholarshipAward {
+//   id        String   @id @default(uuid())
+//   studentId String
+//   amount    Decimal
+//   type      String
+//   startDate DateTime
+//   endDate   DateTime
+//   status    String
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @default(now())
+//   student   Student  @relation(fields: [studentId], references: [id])
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model Payment {
+//   id        String   @id @default(uuid())
+//   studentId String
+//   amount    Decimal
+//   type      String
+//   status    String
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @default(now())
+//   student   Student  @relation(fields: [studentId], references: [id])
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model ApiKey {
+//   id            String      @id @default(uuid())
+//   institutionId String
+//   key           String      @unique
+//   name          String
+//   scopes        String[]
+//   expiresAt     DateTime?
+//   createdAt     DateTime    @default(now())
+//   lastUsedAt    DateTime?
+//   institution   Institution @relation(fields: [institutionId], references: [id])
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model Webhook {
+//   id            String      @id @default(uuid())
+//   institutionId String
+//   url           String
+//   events        String[]
+//   active        Boolean     @default(true)
+//   secret        String
+//   createdAt     DateTime    @default(now())
+//   updatedAt     DateTime    @default(now())
+//   institution   Institution @relation(fields: [institutionId], references: [id])
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model ModuleIntegration {
+//   id            String            @id @default(uuid())
+//   institutionId String
+//   moduleType    ModuleType
+//   config        Json
+//   status        IntegrationStatus @default(ACTIVE)
+//   createdAt     DateTime          @default(now())
+//   updatedAt     DateTime          @default(now())
+//   institution   Institution       @relation(fields: [institutionId], references: [id])
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model InstitutionalAnalytics {
+//   id                  String      @id @default(uuid())
+//   institutionId       String
+//   period              String
+//   startDate           DateTime
+//   endDate             DateTime
+//   totalStudents       Int
+//   newEnrollments      Int
+//   retention           Float
+//   dropout             Float
+//   avgGPA              Float
+//   passRate            Float
+//   graduationRate      Float
+//   revenue             Decimal
+//   expenses            Decimal
+//   outstanding         Decimal
+//   resourceUtilization Json
+//   kpis                Json
+//   trends              Json
+//   forecasts           Json
+//   createdAt           DateTime    @default(now())
+//   updatedAt           DateTime    @default(now())
+//   institution         Institution @relation(fields: [institutionId], references: [id])
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model TenantSchema {
+//   id              String            @id @default(uuid())
+//   institutionId   String            @unique
+//   schemaName      String            @unique
+//   status          SchemaStatus      @default(ACTIVE)
+//   config          Json
+//   version         Int               @default(1)
+//   tableCount      Int               @default(0)
+//   storageUsed     BigInt            @default(0)
+//   quotaLimit      BigInt
+//   lastOptimized   DateTime?
+//   lastBackup      DateTime?
+//   createdAt       DateTime          @default(now())
+//   updatedAt       DateTime          @updatedAt
+//   SchemaOperation SchemaOperation[]
+//   institution     Institution       @relation(fields: [institutionId], references: [id])
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model SchemaOperation {
+//   id          String          @id @default(uuid())
+//   schemaId    String
+//   type        OperationType
+//   status      OperationStatus @default(PENDING)
+//   description String
+//   metadata    Json?
+//   error       String?
+//   startedAt   DateTime?
+//   completedAt DateTime?
+//   duration    Int?
+//   createdAt   DateTime        @default(now())
+//   updatedAt   DateTime        @updatedAt
+//   schema      TenantSchema    @relation(fields: [schemaId], references: [id])
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// model OnlineCourse {
+//   id                String              @id @default(uuid())
+//   title             String
+//   slug              String              @unique
+//   description       String
+//   level             CourseLevel
+//   category          String
+//   curriculum        Json
+//   requirements      String[]
+//   outcomes          String[]
+//   format            CourseFormat
+//   duration          Int
+//   startDate         DateTime?
+//   endDate           DateTime?
+//   instructorId      String
+//   createdAt         DateTime            @default(now())
+//   updatedAt         DateTime            @default(now())
+//   pricing           Decimal?
+//   enrollmentCap     Int?
+//   certificates      Boolean             @default(false)
+//   language          String              @default("en")
+//   tags              String[]
+//   assignments       CourseAssignment[]
+//   courseCompletions CourseCertificate[]
+//   completions       CourseCompletion[]
+//   content           CourseContent[]
+//   discussions       CourseDiscussion[]
+//   materials         CourseMaterial[]
+//   reviews           CourseReview[]
+//   enrollments       Enrollment[]
+//   analytics         LearningAnalytics[]
+//   lessons           Lesson[]
+//   instructor        Instructor          @relation(fields: [instructorId], references: [id])
+//   quizzes           Quiz[]
+//   performances      CoursePerformance[]
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model Enrollment {
+//   id              String           @id @default(uuid())
+//   courseId        String
+//   studentId       String
+//   status          EnrollmentStatus @default(ENROLLED)
+//   progress        Int              @default(0)
+//   createdAt       DateTime         @default(now())
+//   updatedAt       DateTime         @default(now())
+//   course          OnlineCourse     @relation(fields: [courseId], references: [id])
+//   progressDetails Progress?
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model Lesson {
+//   id        String       @id @default(uuid())
+//   courseId  String
+//   title     String
+//   content   String
+//   order     Int
+//   duration  Int
+//   createdAt DateTime     @default(now())
+//   updatedAt DateTime     @default(now())
+//   course    OnlineCourse @relation(fields: [courseId], references: [id])
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model Instructor {
+//   id        String         @id @default(uuid())
+//   userId    String         @unique
+//   name      String
+//   bio       String
+//   expertise String[]
+//   createdAt DateTime       @default(now())
+//   updatedAt DateTime       @default(now())
+//   courses   OnlineCourse[]
+//   ratings   Rating[]
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model Rating {
+//   id           String     @id @default(uuid())
+//   instructorId String
+//   userId       String
+//   score        Int
+//   comment      String?
+//   createdAt    DateTime   @default(now())
+//   instructor   Instructor @relation(fields: [instructorId], references: [id])
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model CourseReview {
+//   id        String       @id @default(uuid())
+//   courseId  String
+//   userId    String
+//   rating    Int
+//   review    String
+//   createdAt DateTime     @default(now())
+//   course    OnlineCourse @relation(fields: [courseId], references: [id])
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model CourseMaterial {
+//   id        String       @id @default(uuid())
+//   courseId  String
+//   title     String
+//   type      MaterialType
+//   url       String
+//   createdAt DateTime     @default(now())
+//   course    OnlineCourse @relation(fields: [courseId], references: [id])
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model CourseDiscussion {
+//   id        String       @id @default(uuid())
+//   courseId  String
+//   userId    String
+//   title     String
+//   content   String
+//   createdAt DateTime     @default(now())
+//   updatedAt DateTime     @default(now())
+//   course    OnlineCourse @relation(fields: [courseId], references: [id])
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model Quiz {
+//   id               String        @id @default(uuid())
+//   courseId         String
+//   title            String
+//   description      String?
+//   timeLimit        Int?
+//   passingScore     Int           @default(80)
+//   maxAttempts      Int           @default(3)
+//   isRequired       Boolean       @default(true)
+//   shuffleQuestions Boolean       @default(true)
+//   questions        Json
+//   averageScore     Float         @default(0)
+//   completionRate   Float         @default(0)
+//   createdAt        DateTime      @default(now())
+//   updatedAt        DateTime      @default(now())
+//   course           OnlineCourse  @relation(fields: [courseId], references: [id])
+//   attempts         QuizAttempt[]
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model QuizAttempt {
+//   id          String        @id @default(uuid())
+//   quizId      String
+//   userId      String
+//   answers     Json
+//   score       Float?
+//   timeSpent   Int?
+//   status      AttemptStatus @default(IN_PROGRESS)
+//   startedAt   DateTime      @default(now())
+//   submittedAt DateTime?
+//   quiz        Quiz          @relation(fields: [quizId], references: [id])
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model LearningAnalytics {
+//   id              String       @id @default(uuid())
+//   userId          String
+//   courseId        String
+//   watchTime       Int          @default(0)
+//   interactionRate Float        @default(0)
+//   completionRate  Float        @default(0)
+//   averageScore    Float        @default(0)
+//   strengths       String[]
+//   weaknesses      String[]
+//   preferredTimes  Json
+//   contentTypes    Json
+//   paceMetrics     Json
+//   suggestions     Json
+//   createdAt       DateTime     @default(now())
+//   updatedAt       DateTime     @default(now())
+//   course          OnlineCourse @relation(fields: [courseId], references: [id])
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model Progress {
+//   id                   String     @id @default(uuid())
+//   enrollmentId         String     @unique
+//   completed            Int        @default(0)
+//   modulesCompleted     Int        @default(0)
+//   unitsCompleted       Int        @default(0)
+//   quizzesCompleted     Int        @default(0)
+//   assignmentsCompleted Int        @default(0)
+//   averageScore         Float      @default(0)
+//   lastActivity         DateTime   @default(now())
+//   studyStreak          Int        @default(0)
+//   totalTimeSpent       Int        @default(0)
+//   nextUnit             String?
+//   suggestions          String[]
+//   createdAt            DateTime   @default(now())
+//   updatedAt            DateTime   @default(now())
+//   enrollment           Enrollment @relation(fields: [enrollmentId], references: [id])
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model CourseAssignment {
+//   id             String                       @id @default(uuid())
+//   courseId       String
+//   title          String
+//   description    String
+//   dueDate        DateTime?
+//   points         Int                          @default(100)
+//   isRequired     Boolean                      @default(true)
+//   maxAttempts    Int                          @default(1)
+//   allowLate      Boolean                      @default(true)
+//   latePenalty    Float?
+//   rubric         Json?
+//   averageScore   Float                        @default(0)
+//   submissionRate Float                        @default(0)
+//   createdAt      DateTime                     @default(now())
+//   updatedAt      DateTime                     @default(now())
+//   course         OnlineCourse                 @relation(fields: [courseId], references: [id])
+//   submissions    CourseAssignmentSubmission[]
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model CourseAssignmentSubmission {
+//   id           String           @id @default(uuid())
+//   assignmentId String
+//   userId       String
+//   content      String?
+//   attachments  String[]
+//   submittedAt  DateTime         @default(now())
+//   score        Float?
+//   feedback     String?
+//   gradedAt     DateTime?
+//   gradedBy     String?
+//   status       SubmissionStatus @default(PENDING)
+//   attempt      Int              @default(1)
+//   assignment   CourseAssignment @relation(fields: [assignmentId], references: [id])
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model CourseCompletion {
+//   id                   String       @id @default(uuid())
+//   courseId             String
+//   userId               String
+//   completedAt          DateTime     @default(now())
+//   grade                Float?
+//   certificateId        String?
+//   modulesCompleted     Boolean      @default(false)
+//   assignmentsCompleted Boolean      @default(false)
+//   quizzesCompleted     Boolean      @default(false)
+//   timeSpent            Int
+//   engagementScore      Float
+//   createdAt            DateTime     @default(now())
+//   updatedAt            DateTime     @default(now())
+//   course               OnlineCourse @relation(fields: [courseId], references: [id])
+
+//   @@unique([courseId, userId])
+//   @@schema("courses_platform_schema")
+// }
+
+// model CourseCertificate {
+//   id             String       @id @default(uuid())
+//   courseId       String
+//   userId         String
+//   certificateUrl String
+//   issuedAt       DateTime     @default(now())
+//   validUntil     DateTime?
+//   verificationId String       @unique
+//   metadata       Json
+//   createdAt      DateTime     @default(now())
+//   updatedAt      DateTime     @default(now())
+//   course         OnlineCourse @relation(fields: [courseId], references: [id])
+
+//   @@schema("courses_platform_schema")
+// }
+
+// model CourseContent {
+//   id          String        @id @default(uuid())
+//   courseId    String
+//   version     Int           @default(1)
+//   changelog   String?
+//   status      ContentStatus @default(DRAFT)
+//   publishAt   DateTime?
+//   unpublishAt DateTime?
+//   modules     Json
+//   resources   Json
+//   createdAt   DateTime      @default(now())
+//   updatedAt   DateTime      @default(now())
+//   course      OnlineCourse  @relation(fields: [courseId], references: [id])
+
+//   @@schema("courses_platform_schema")
+// }
+
+// // Freelancing - Post Model with Hybrid/Online/Remote Categories
+// enum FreelanceCategory {
+//   HYBRID    // Hybrid work (mix of remote and onsite)
+//   ONLINE    // Fully online/remote work
+//   REMOTE    // Remote work from specific location
+// }
+
+// model FreelancePost {
+//   id               String             @id @default(uuid())
+//   authorId         String             // User who posted the freelance job
+  
+//   // REQUIRED: Freelance Category Selection (Hybrid/Online/Remote)
+//   freelanceCategory FreelanceCategory // User must select on post creation
+  
+//   // Post Content (Facebook-like)
+//   title            String
+//   content          String             // Project description
+//   mediaUrls        String[]           // Images, documents, attachments
+  
+//   // Freelance Project Details
+//   category         String
+//   skills           String[]
+//   budget           Decimal
+//   timeframe        Int                // Days to complete
+//   complexity       ProjectComplexity
+  
+//   // Post Engagement
+//   viewCount        Int                @default(0)
+//   likeCount        Int                @default(0)
+//   commentCount     Int                @default(0)
+//   shareCount       Int                @default(0)
+//   proposalCount    Int                @default(0)
+  
+//   status           ProjectStatus      @default(OPEN)
+//   postedAt         DateTime           @default(now())
+//   createdAt        DateTime           @default(now())
+//   updatedAt        DateTime           @updatedAt
+  
+//   client           User               @relation("FreelanceProjectOwner", fields: [clientId], references: [id])
+//   proposals        Proposal[]
+  
+//   // Required field that was missing
+//   clientId         String
+
+//   @@schema("freelancing_schema")
+// }
+
+// model Proposal {
+//   id           String         @id @default(uuid())
+//   projectId    String
+//   freelancerId String
+//   coverLetter  String
+//   price        Decimal
+//   timeframe    Int
+//   status       ProposalStatus @default(PENDING)
+//   createdAt    DateTime       @default(now())
+//   updatedAt    DateTime       @default(now())
+//   project      FreelancePost  @relation(fields: [projectId], references: [id])
+
+//   @@schema("freelancing_schema")
+// }
+
+// // ==========================================
+// // JOBS PORTAL - POST MODEL WITH CATEGORIES
+// // ==========================================
+
+// enum JobCategory {
+//   PRIVATE     // Private sector jobs
+//   GOVERNMENT  // Government/public sector jobs
+// }
+
+// enum JobType {
+//   FULL_TIME
+//   PART_TIME
+//   CONTRACT
+//   INTERNSHIP
+//   FREELANCE
+// }
+
+// enum JobStatus {
+//   ACTIVE
+//   EXPIRED
+//   FILLED
+//   DRAFT
+// }
+
+// enum ApplicationStatus {
+//   PENDING
+//   REVIEWED
+//   ACCEPTED
+//   REJECTED
+// }
+
+// // Jobs Portal Post Model - Facebook-like posts for job listings
+// model JobPost {
+//   id              String            @id @default(uuid())
+//   authorId        String            // User who posted the job
+  
+//   // Job Category Selection (Required on post creation)
+//   jobCategory     JobCategory       // User must select: PRIVATE or GOVERNMENT
+  
+//   // Post Content (Facebook-like)
+//   title           String
+//   content         String            // Job description
+//   mediaUrls       String[]          // Images, documents, attachments
+//   tags            String[]          // Job tags, skills hashtags
+  
+//   // Job-Specific Details
+//   company         String
+//   location        String
+//   jobType         JobType
+//   requirements    String[]
+//   experience      Int               // Years of experience required
+//   skills          String[]
+//   benefits        String[]
+//   remote          Boolean           @default(false)
+  
+//   // Post Engagement (Facebook-like)
+//   viewCount       Int               @default(0)
+//   likeCount       Int               @default(0)
+//   commentCount    Int               @default(0)
+//   shareCount      Int               @default(0)
+//   applicationCount Int              @default(0)
+  
+//   // Post Status & Scheduling
+//   status          JobStatus         @default(ACTIVE)
+//   postedAt        DateTime          @default(now())
+//   expiresAt       DateTime?
+  
+//   // Relationships
+//   applications    JobApplication[]
+//   salary          SalaryRange?
+//   likes           JobPostLike[]
+//   comments        JobPostComment[]
+//   shares          JobPostShare[]
+  
+//   createdAt       DateTime          @default(now())
+//   updatedAt       DateTime          @updatedAt
+
+//   @@schema("jobs_portal_schema")
+// }
+
+// // Job Post Engagement Models
+// model JobPostLike {
+//   id        String   @id @default(uuid())
+//   jobPostId String
+//   userId    String
+//   createdAt DateTime @default(now())
+  
+//   jobPost   JobPost  @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+  
+//   @@unique([jobPostId, userId])
+//   @@schema("jobs_portal_schema")
+// }
+
+// model JobPostComment {
+//   id        String   @id @default(uuid())
+//   jobPostId String
+//   userId    String
+//   content   String
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+  
+//   jobPost   JobPost  @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+  
+//   @@schema("jobs_portal_schema")
+// }
+
+// model JobPostShare {
+//   id        String   @id @default(uuid())
+//   jobPostId String
+//   userId    String
+//   caption   String?  // User's comment when sharing
+//   createdAt DateTime @default(now())
+  
+//   jobPost   JobPost  @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+  
+//   @@unique([jobPostId, userId])
+//   @@schema("jobs_portal_schema")
+// }
+
+// // Edu News - Post Model with Official/Non-Official Categories
+// enum NewsType {
+//   OFFICIAL      // Official institution news
+//   NON_OFFICIAL  // Non-official/student news
+// }
+
+// model NewsPost {
+//   id            String        @id @default(uuid())
+//   authorId      String        // User who posted the news
+  
+//   // REQUIRED: News Type Selection (Official/Non-Official)
+//   newsType      NewsType      // User must select on post creation
+  
+//   // Post Content (Facebook-like)
+//   title         String
+//   content       String        // News content
+//   summary       String?       // Optional summary
+//   mediaUrls     String[]      // Images, videos, documents
+//   slug          String        @unique
+  
+//   // News-Specific Details
+//   category      NewsCategory
+//   tags          String[]
+  
+//   // Post Engagement
+//   viewCount     Int           @default(0)
+//   likeCount     Int           @default(0)
+//   commentCount  Int           @default(0)
+//   shareCount    Int           @default(0)
+  
+//   status        PublishStatus @default(DRAFT)
+//   publishedAt   DateTime?
+//   createdAt     DateTime      @default(now())
+//   updatedAt     DateTime      @updatedAt
+  
+//   author        User          @relation("NewsPostAuthor", fields: [authorId], references: [id])
+//   comments      NewsComment[]
+//   likes         NewsLike[]
+
+//   @@schema("news_system_schema")
+// }
+
+// model NewsComment {
+//   id        String      @id @default(uuid())
+//   articleId String
+//   userId    String
+//   content   String
+//   createdAt DateTime    @default(now())
+//   updatedAt DateTime    @default(now())
+//   newsPost  NewsPost    @relation(fields: [articleId], references: [id])
+
+//   @@schema("news_system_schema")
+// }
+
+// model NewsLike {
+//   id        String      @id @default(uuid())
+//   articleId String
+//   userId    String
+//   createdAt DateTime    @default(now())
+//   newsPost  NewsPost    @relation(fields: [articleId], references: [id])
+
+//   @@unique([articleId, userId])
+//   @@schema("news_system_schema")
+// }
+
+// model Room {
+//   id             String          @id @default(uuid())
+//   name           String
+//   description    String?
+//   type           RoomType
+//   isPrivate      Boolean         @default(false)
+//   settings       Json?
+//   createdAt      DateTime        @default(now())
+//   updatedAt      DateTime        @default(now())
+//   messages       Message[]
+//   pinnedMessages PinnedMessage[]
+//   members        RoomMember[]
+//   moderators     RoomModerator[]
+
+//   @@schema("community_rooms_schema")
+// }
+
+// model Message {
+//   id          String   @id @default(uuid())
+//   roomId      String
+//   userId      String
+//   content     String
+//   attachments String[]
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @default(now())
+//   room        Room     @relation(fields: [roomId], references: [id])
+
+//   @@schema("community_rooms_schema")
+// }
+
+// model RoomMember {
+//   id       String   @id @default(uuid())
+//   roomId   String
+//   userId   String
+//   role     String   @default("member")
+//   joinedAt DateTime @default(now())
+//   room     Room     @relation(fields: [roomId], references: [id])
+
+//   @@unique([roomId, userId])
+//   @@schema("community_rooms_schema")
+// }
+
+// model RoomModerator {
+//   id          String   @id @default(uuid())
+//   roomId      String
+//   userId      String
+//   appointedAt DateTime @default(now())
+//   room        Room     @relation(fields: [roomId], references: [id])
+
+//   @@unique([roomId, userId])
+//   @@schema("community_rooms_schema")
+// }
+
+// model PinnedMessage {
+//   id        String   @id @default(uuid())
+//   roomId    String
+//   messageId String
+//   pinnedBy  String
+//   pinnedAt  DateTime @default(now())
+//   room      Room     @relation(fields: [roomId], references: [id])
+
+//   @@schema("community_rooms_schema")
+// }
+
+// model PlatformMetrics {
+//   id              String   @id @default(uuid())
+//   date            DateTime @unique
+//   activeUsers     Int
+//   newUsers        Int
+//   totalUsers      Int
+//   posts           Int
+//   comments        Int
+//   interactions    Int
+//   activeStudents  Int
+//   activeCourses   Int
+//   completions     Int
+//   avgResponseTime Float
+//   errorCount      Int
+//   calculatedAt    DateTime @default(now())
+
+//   @@schema("statistics_schema")
+// }
+
+// model ModuleMetrics {
+//   id         String     @id @default(uuid())
+//   moduleId   String
+//   moduleName ModuleName
+//   metrics    Json
+//   date       DateTime
+//   createdAt  DateTime   @default(now())
+
+//   @@schema("statistics_schema")
+// }
+
+// model CoursePerformance {
+//   id                     String                @id @default(uuid())
+//   studentId              String
+//   courseId               String
+//   gradeMetricsId         String?               @unique
+//   attendanceMetricsId    String?               @unique
+//   participationMetricsId String?               @unique
+//   progressMetricsId      String?               @unique
+//   engagementMetricsId    String?               @unique
+//   activityMetricsId      String?               @unique
+//   period                 String
+//   startDate              DateTime
+//   endDate                DateTime
+//   createdAt              DateTime              @default(now())
+//   updatedAt              DateTime              @updatedAt
+//   activity               ActivityMetrics?      @relation(fields: [activityMetricsId], references: [id])
+//   attendance             AttendanceMetrics?    @relation(fields: [attendanceMetricsId], references: [id])
+//   course                 OnlineCourse          @relation(fields: [courseId], references: [id])
+//   engagement             StudentEngagement?    @relation(fields: [engagementMetricsId], references: [id])
+//   grades                 GradeMetrics?         @relation(fields: [gradeMetricsId], references: [id])
+//   participation          ParticipationMetrics? @relation(fields: [participationMetricsId], references: [id])
+//   progress               ProgressMetrics?      @relation(fields: [progressMetricsId], references: [id])
+//   student                User                  @relation(fields: [studentId], references: [id])
+
+//   @@schema("statistics_schema")
+// }
+
+// model GradeMetrics {
+//   id            String             @id @default(uuid())
+//   currentGrade  Float
+//   avgAssignment Float
+//   avgQuiz       Float
+//   avgExam       Float
+//   gradeHistory  Json
+//   createdAt     DateTime           @default(now())
+//   updatedAt     DateTime           @default(now())
+//   performance   CoursePerformance?
+
+//   @@schema("statistics_schema")
+// }
+
+// model AttendanceMetrics {
+//   id                String             @id @default(uuid())
+//   totalSessions     Int
+//   attended          Int
+//   absences          Int
+//   lateArrivals      Int
+//   attendanceRate    Float
+//   attendanceHistory Json
+//   performance       CoursePerformance?
+
+//   @@schema("statistics_schema")
+// }
+
+// model ParticipationMetrics {
+//   id                  String             @id @default(uuid())
+//   discussionPosts     Int
+//   questionAsked       Int
+//   answersGiven        Int
+//   peerInteractions    Int
+//   groupWork           Int
+//   contributionQuality Float
+//   engagementScore     Float
+//   performance         CoursePerformance?
+
+//   @@schema("statistics_schema")
+// }
+
+// model StudentEngagement {
+//   id              String             @id @default(uuid())
+//   resourceAccess  Int
+//   timeSpent       Int
+//   activityScore   Float
+//   activityHistory Json
+//   peakTimes       Json
+//   materialsUsed   Json
+//   toolsUsed       Json
+//   performance     CoursePerformance?
+
+//   @@schema("statistics_schema")
+// }
+
+// model ActivityMetrics {
+//   id                  String             @id @default(uuid())
+//   lastActive          DateTime
+//   loginFrequency      Int
+//   sessionDuration     Float
+//   activityLevel       String
+//   peerInteractions    Json
+//   contentInteractions Json
+//   performance         CoursePerformance?
+
+//   @@schema("statistics_schema")
+// }
+
+// model ProgressMetrics {
+//   id                  String             @id @default(uuid())
+//   moduleProgress      Json
+//   skillProgress       Json
+//   learningPath        Json
+//   milestones          Json
+//   completionRate      Float
+//   onTrack             Boolean
+//   estimatedCompletion DateTime?
+//   performance         CoursePerformance?
+
+//   @@schema("statistics_schema")
+// }
+
+// model InstitutionPerformance {
+//   id             String              @id @default(uuid())
+//   institutionId  String
+//   enrollmentId   String              @unique
+//   academicsId    String              @unique
+//   engagementId   String              @unique
+//   satisfactionId String              @unique
+//   period         String
+//   startDate      DateTime
+//   endDate        DateTime
+//   createdAt      DateTime            @default(now())
+//   updatedAt      DateTime            @default(now())
+//   academics      AcademicMetrics     @relation("AcademicMetricsRelation", fields: [academicsId], references: [id])
+//   engagement     EngagementMetrics   @relation("EngagementMetricsRelation", fields: [engagementId], references: [id])
+//   enrollment     EnrollmentMetrics   @relation("EnrollmentMetricsRelation", fields: [enrollmentId], references: [id])
+//   institution    Institution         @relation(fields: [institutionId], references: [id])
+//   satisfaction   SatisfactionMetrics @relation("SatisfactionMetricsRelation", fields: [satisfactionId], references: [id])
+
+//   @@schema("statistics_schema")
+// }
+
+// model FacultyAnalytics {
+//   id              String   @id @default(uuid())
+//   staffId         String
+//   institutionId   String
+//   courseLoad      Int
+//   studentCount    Int
+//   averageRating   Float
+//   publications    Int
+//   researchGrants  Decimal
+//   conferences     Int
+//   evaluationScore Float
+//   peerRating      Float
+//   studentFeedback Json
+//   period          String
+//   startDate       DateTime
+//   endDate         DateTime
+//   createdAt       DateTime @default(now())
+//   updatedAt       DateTime @default(now())
+
+//   @@schema("statistics_schema")
+// }
+
+// model DepartmentAnalytics {
+//   id                 String   @id @default(uuid())
+//   departmentId       String
+//   studentCount       Int
+//   courseCount        Int
+//   avgClassSize       Float
+//   passRate           Float
+//   facultyCount       Int
+//   courseLoad         Json
+//   researchOutput     Json
+//   budgetUtilization  Json
+//   resourceAllocation Json
+//   satisfaction       Json
+//   outcomes           Json
+//   research           Json
+//   period             String
+//   startDate          DateTime
+//   endDate            DateTime
+//   createdAt          DateTime @default(now())
+//   updatedAt          DateTime @default(now())
+
+//   @@schema("statistics_schema")
+// }
+
+// model ArticleAnalytics {
+//   id              String   @id @default(uuid())
+//   articleId       String   @unique
+//   totalViews      Int      @default(0)
+//   uniqueViews     Int      @default(0)
+//   averageReadTime Int
+//   totalLikes      Int      @default(0)
+//   totalComments
+//   institutionId String
+//   metrics       Json
+//   period        String
+//   createdAt     DateTime    @default(now())
+//   institution   Institution @relation(fields: [institutionId], references: [id])
+
+//   @@schema("statistics_schema")
+// }
+
+// model EfficiencyMetrics {
+//   id            String      @id @default(uuid())
+//   institutionId String
+//   metrics       Json
+//   period        String
+//   createdAt     DateTime    @default(now())
+//   institution   Institution @relation(fields: [institutionId], references: [id])
+
+//   @@schema("statistics_schema")
+// }
+
+// model FacultyMetrics {
+//   id            String      @id @default(uuid())
+//   institutionId String
+//   metrics       Json
+//   period        String
+//   createdAt     DateTime    @default(now())
+//   institution   Institution @relation(fields: [institutionId], references: [id])
+
+//   @@schema("statistics_schema")
+// }
+
+// model ResourceMetrics {
+//   id            String      @id @default(uuid())
+//   institutionId String
+//   metrics       Json
+//   period        String
+//   createdAt     DateTime    @default(now())
+//   institution   Institution @relation(fields: [institutionId], references: [id])
+
+//   @@schema("statistics_schema")
+// }
+
+// model Feedback {
+//   id          String           @id @default(uuid())
+//   userId      String
+//   type        FeedbackType
+//   category    FeedbackCategory
+//   title       String
+//   description String
+//   rating      Int?
+//   sentiment   Sentiment?
+//   status      FeedbackStatus   @default(PENDING)
+//   resolution  String?
+//   source      String
+//   browser     String?
+//   os          String?
+//   createdAt   DateTime         @default(now())
+//   updatedAt   DateTime         @default(now())
+
+//   @@schema("feedback_schema")
+// }
+
+// model NotificationEntity {
+//   id               String                    @id @default(uuid())
+//   userId           String
+//   actorId          String?
+//   entityId         String?
+//   entityType       String?
+//   notificationType String
+//   category         NotificationCategory
+//   priority         NotificationPriority      @default(NORMAL)
+//   template         String
+//   title            String
+//   message          String
+//   imageUrl         String?
+//   linkUrl          String?
+//   actionData       Json?
+//   groupId          String?
+//   groupCount       Int                       @default(1)
+//   groupActors      Json?
+//   isRead           Boolean                   @default(false)
+//   isArchived       Boolean                   @default(false)
+//   isMuted          Boolean                   @default(false)
+//   readAt           DateTime?
+//   status           DeliveryStatus            @default(PENDING)
+//   deliveryAttempts Int                       @default(0)
+//   scheduledFor     DateTime?
+//   deliveredAt      DateTime?
+//   createdAt        DateTime                  @default(now())
+//   updatedAt        DateTime                  @updatedAt
+//   channels         NotificationChannel[]
+//   group            NotificationGroup?        @relation(fields: [groupId], references: [id])
+//   preferences      NotificationPreference    @relation(fields: [userId], references: [userId])
+//   interactions     NotificationInteraction[]
+
+//   @@index([userId, isRead, createdAt])
+//   @@index([userId, notificationType, createdAt])
+//   @@schema("notification_schema")
+// }
+
+// model NotificationPreference {
+//   id                String               @id @default(uuid())
+//   userId            String               @unique
+//   pushEnabled       Boolean              @default(true)
+//   emailEnabled      Boolean              @default(true)
+//   inAppEnabled      Boolean              @default(true)
+//   soundEnabled      Boolean              @default(true)
+//   categorySettings  Json
+//   quietHoursEnabled Boolean              @default(false)
+//   quietHoursStart   String?
+//   quietHoursEnd     String?
+//   timezone          String               @default("UTC")
+//   mutedUsers        String[]
+//   mutedTopics       String[]
+//   mutedTypesList    String[]
+//   customFilters     Json?
+//   updatedAt         DateTime             @updatedAt
+//   createdAt         DateTime             @default(now())
+//   notifications     NotificationEntity[]
+//   user              User                 @relation("UserNotificationPreferences", fields: [userId], references: [id])
+
+//   @@schema("notification_schema")
+// }
+
+// model NotificationGroup {
+//   id               String               @id @default(uuid())
+//   key              String               @unique
+//   notificationType String
+//   category         NotificationCategory
+//   template         String
+//   actorIds         String[]
+//   entityIds        String[]
+//   count            Int                  @default(1)
+//   lastMessage      String
+//   context          Json?
+//   updatedAt        DateTime             @updatedAt
+//   createdAt        DateTime             @default(now())
+//   expiresAt        DateTime?
+//   notifications    NotificationEntity[]
+
+//   @@index([createdAt])
+//   @@schema("notification_schema")
+// }
+
+// model NotificationChannel {
+//   id             String             @id @default(uuid())
+//   notificationId String
+//   channel        ChannelType
+//   status         DeliveryStatus     @default(PENDING)
+//   deviceId       String?
+//   address        String?
+//   payload        Json?
+//   attempts       Int                @default(0)
+//   lastAttempt    DateTime?
+//   deliveredAt    DateTime?
+//   error          String?
+//   createdAt      DateTime           @default(now())
+//   updatedAt      DateTime           @updatedAt
+//   notification   NotificationEntity @relation(fields: [notificationId], references: [id])
+
+//   @@unique([notificationId, channel])
+//   @@schema("notification_schema")
+// }
+
+// model NotificationInteraction {
+//   id             String             @id @default(uuid())
+//   notificationId String
+//   type           InteractionType
+//   actionTaken    String?
+//   deviceInfo     String?
+//   deviceType     String?
+//   ipAddress      String?
+//   userAgent      String?
+//   createdAt      DateTime           @default(now())
+//   notification   NotificationEntity @relation(fields: [notificationId], references: [id])
+
+//   @@index([notificationId, type])
+//   @@schema("notification_schema")
+// }
+
+// enum AuthAttemptStatus {
+//   SUCCESS
+//   FAILED
+//   BLOCKED
+
+//   @@schema("simple_auth_schema")
+// }
+
+// enum UserRoleType {
+//   // Educational Platform Roles
+//   SUPER_ADMIN        // Complete system control across all institutions
+//   INSTITUTION_ADMIN  // Full control over specific institution
+//   DEPARTMENT_HEAD    // Department management within institution
+//   TEACHER           // Classroom and course management
+//   STUDENT           // Learning platform access
+//   PARENT            // Child progress monitoring
+//   USER             // Basic platform access
+//   GUEST            // Limited access for non-registered users
+
+//   // Platform Management Roles
+//   PLATFORM_ADMIN    // Platform-wide administration
+//   CONTENT_MODERATOR // Content moderation across platform
+//   SUPPORT_STAFF     // Customer support and assistance
+  
+//   // Content Creator Roles
+//   INSTRUCTOR        // Course creation and instruction
+//   CONTENT_CREATOR   // Educational content creation
+//     // General Platform Roles
+
+//   @@schema("simple_auth_schema")
+// }
+
+// enum AccessLevel {
+//   BASIC         // Standard user access
+//   PREMIUM       // Enhanced features access
+//   PROFESSIONAL  // Professional tools access
+//   ENTERPRISE    // Full enterprise features
+//   ADMIN         // Administrative access
+//   RESTRICTED    // Limited access (temporary suspensions)
+
+//   @@schema("simple_auth_schema")
+// }
+
+// enum DataScopeType {
+//   SELF              // Can only see own data (STUDENT, PARENT default)
+//   CLASS             // Can see data for assigned classes (TEACHER)
+//   DEPARTMENT        // Can see department-wide data (DEPARTMENT_HEAD)
+//   INSTITUTION       // Can see institution-wide data (INSTITUTION_ADMIN)
+//   PLATFORM          // Can see all platform data (SUPER_ADMIN, PLATFORM_ADMIN)
+//   MULTI_INSTITUTION // Can see multiple institutions (SUPER_ADMIN)
+//   RESTRICTED        // Limited access (suspended users)
+
+//   @@schema("simple_auth_schema")
+// }
+
+// enum InstitutionRoleType {
+//   ADMIN             // Full institution administration
+//   MANAGER           // Institution management  
+//   STAFF             // Institution staff
+//   MEMBER            // Basic institution member
+//   GUEST             // Limited guest access
+
+//   @@schema("simple_auth_schema")
+// }
+
+// enum DepartmentRoleType {
+//   HEAD              // Department head
+//   COORDINATOR       // Department coordinator
+//   FACULTY           // Department faculty
+//   STAFF             // Department staff
+//   MEMBER            // Basic department member
+
+//   @@schema("simple_auth_schema")
+// }
+
+// enum ClassRoleType {
+//   INSTRUCTOR        // Primary instructor
+//   ASSISTANT         // Teaching assistant
+//   STUDENT           // Enrolled student
+//   OBSERVER          // Class observer/auditor
+
+//   @@schema("simple_auth_schema")
+// }
+
+// enum StudentEnrollmentStatus {
+//   ACTIVE            // Currently enrolled
+//   COMPLETED         // Successfully completed
+//   DROPPED           // Dropped from class
+//   SUSPENDED         // Temporarily suspended
+//   TRANSFERRED       // Transferred to another class
+
+//   @@schema("simple_auth_schema")
+// }
+
+// enum ProfileVisibility {
+//   PUBLIC
+//   PRIVATE
+//   FRIENDS
+//   INSTITUTION
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// enum SkillLevel {
+//   BEGINNER
+//   INTERMEDIATE
+//   ADVANCED
+//   EXPERT
+//   @@schema("students_social_platform_schema")
+// }
+
+// enum ContentStatus {
+//   ACTIVE
+//   EDITED
+//   DELETED
+//   FLAGGED
+//   HIDDEN
+//   DRAFT
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// enum FollowStatus {
+//   PENDING
+//   ACCEPTED
+//   BLOCKED
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// enum AcademicStatus {
+//   ENROLLED
+//   GRADUATED
+//   ON_LEAVE
+//   WITHDRAWN
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// enum AcademicStanding {
+//   EXCELLENT
+//   GOOD
+//   WARNING
+//   PROBATION
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// enum LearningStyle {
+//   VISUAL
+//   AUDITORY
+//   KINESTHETIC
+//   READING_WRITING
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// enum GoalStatus {
+//   ACTIVE
+//   COMPLETED
+//   ABANDONED
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// enum GroupVisibility {
+//   PUBLIC
+//   PRIVATE
+//   MEMBERS_ONLY
+//   INSTITUTION
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// enum JoinType {
+//   OPEN
+//   REQUEST
+//   INVITE_ONLY
+
+//   @@schema("students_social_platform_schema")
+// }
+
+// enum InstitutionType {
+//   UNIVERSITY
+//   COLLEGE
+//   SCHOOL
+//   ACADEMY
+//   TRAINING_CENTER
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum InstitutionStatus {
+//   ACTIVE
+//   SUSPENDED
+//   INACTIVE
+//   PENDING
+//   ARCHIVED
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// // 🎯 Institution Application & Enrollment Enums  
+// enum InstitutionApplicationStatus {
+//   PENDING       // Application submitted, awaiting review
+//   UNDER_REVIEW  // Admin is reviewing
+//   ACCEPTED      // Application approved
+//   REJECTED      // Application denied
+//   WITHDRAWN     // Applicant withdrew
+//   EXPIRED       // Application deadline passed
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum InstitutionMemberRole {
+//   OWNER           // Institution creator/owner
+//   ADMIN           // Institution administrator  
+//   PRINCIPAL       // School principal
+//   DEPARTMENT_HEAD // Department head
+//   TEACHER         // Faculty/instructor
+//   STUDENT         // Enrolled student
+//   STAFF           // Support staff
+//   PARENT          // Parent/guardian access
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum InstitutionAccessLevel {
+//   BASIC           // Limited access
+//   STANDARD        // Regular access
+//   ADVANCED        // Enhanced access
+//   ADMIN           // Administrative access
+//   OWNER           // Full owner access
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum MemberStatus {
+//   ACTIVE          // Currently active member
+//   INACTIVE        // Temporarily inactive
+//   SUSPENDED       // Suspended member
+//   REMOVED         // Removed from institution
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum StaffRole {
+//   ADMIN
+//   TEACHER
+//   COORDINATOR
+//   LIBRARIAN
+//   STAFF
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum StaffStatus {
+//   ACTIVE
+//   ON_LEAVE
+//   INACTIVE
+//   TERMINATED
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum SubscriptionTier {
+//   BASIC
+//   STANDARD
+//   PREMIUM
+//   ENTERPRISE
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum StudentStatus {
+//   ACTIVE
+//   INACTIVE
+//   GRADUATED
+//   SUSPENDED
+//   WITHDRAWN
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum ProgramType {
+//   UNDERGRADUATE
+//   GRADUATE
+//   DIPLOMA
+//   CERTIFICATE
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum TeachingRole {
+//   PRIMARY
+//   ASSISTANT
+//   GUEST
+//   SUBSTITUTE
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum AttendanceStatus {
+//   PRESENT
+//   ABSENT
+//   LATE
+//   EXCUSED
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum GradeType {
+//   ASSIGNMENT
+//   QUIZ
+//   MIDTERM
+//   FINAL
+//   PROJECT
+//   PARTICIPATION
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum ExamType {
+//   QUIZ
+//   MIDTERM
+//   FINAL
+//   PLACEMENT
+//   APTITUDE
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum ExamStatus {
+//   UPCOMING
+//   IN_PROGRESS
+//   COMPLETED
+//   CANCELLED
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum SubmissionStatus {
+//   DRAFT
+//   SUBMITTED
+//   GRADED
+//   RETURNED
+//   LATE
+//   PENDING
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum ModuleType {
+//   STUDENTS
+//   FEEDBACK
+//   COURSES
+//   COMMUNITY
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum IntegrationStatus {
+//   ACTIVE
+//   INACTIVE
+//   MAINTENANCE
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum SchemaStatus {
+//   ACTIVE
+//   SUSPENDED
+//   MIGRATING
+//   ARCHIVED
+//   ERROR
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum OperationType {
+//   CREATE
+//   MIGRATE
+//   BACKUP
+//   RESTORE
+//   OPTIMIZE
+//   DELETE
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum OperationStatus {
+//   PENDING
+//   IN_PROGRESS
+//   COMPLETED
+//   FAILED
+//   ROLLED_BACK
+
+//   @@schema("edu_matrix_hub_schema")
+// }
+
+// enum CourseLevel {
+//   BEGINNER
+//   INTERMEDIATE
+//   ADVANCED
+//   EXPERT
+
+//   @@schema("courses_platform_schema")
+// }
+
+// enum CourseFormat {
+//   SELF_PACED
+//   INSTRUCTOR_LED
+//   HYBRID
+//   WORKSHOP
+
+//   @@schema("courses_platform_schema")
+// }
+
+// enum EnrollmentStatus {
+//   ENROLLED
+//   COMPLETED
+//   DROPPED
+//   SUSPENDED
+
+//   @@schema("courses_platform_schema")
+// }
+
+// enum MaterialType {
+//   VIDEO
+//   DOCUMENT
+//   QUIZ
+//   ASSIGNMENT
+//   RESOURCE
+
+//   @@schema("courses_platform_schema")
+// }
+
+// enum AttemptStatus {
+//   IN_PROGRESS
+//   SUBMITTED
+//   GRADED
+//   ABANDONED
+
+//   @@schema("courses_platform_schema")
+// }
+
+// enum ProjectStatus {
+//   OPEN
+//   IN_PROGRESS
+//   COMPLETED
+//   CANCELLED
+
+//   @@schema("freelancing_schema")
+// }
+
+// enum ProjectComplexity {
+//   BASIC
+//   INTERMEDIATE
+//   COMPLEX
+//   EXPERT
+
+//   @@schema("freelancing_schema")
+// }
+
+// enum ProposalStatus {
+//   PENDING
+//   ACCEPTED
+//   REJECTED
+//   WITHDRAWN
+
+//   @@schema("freelancing_schema")
+// }
+
+// enum JobType {
+//   FULL_TIME
+//   PART_TIME
+//   CONTRACT
+//   INTERNSHIP
+//   REMOTE
+
+//   @@schema("jobs_portal_schema")
+// }
+
+// enum JobStatus {
+//   ACTIVE
+//   FILLED
+//   EXPIRED
+//   DRAFT
+
+//   @@schema("jobs_portal_schema")
+// }
+
+// enum ApplicationStatus {
+//   PENDING
+//   REVIEWED
+//   SHORTLISTED
+//   REJECTED
+//   ACCEPTED
+
+//   @@schema("jobs_portal_schema")
+// }
+
+// enum NewsCategory {
+//   EDUCATION
+//   TECHNOLOGY
+//   POLICY
+//   EVENTS
+//   RESEARCH
+//   CAREERS
+
+//   @@schema("news_system_schema")
+// }
+
+// enum PublishStatus {
+//   DRAFT
+//   REVIEWING
+//   PUBLISHED
+//   ARCHIVED
+
+//   @@schema("news_system_schema")
+// }
+
+// enum RoomType {
+//   PUBLIC
+//   PRIVATE
+//   DIRECT
+//   COURSE
+//   INSTITUTION
+
+//   @@schema("community_rooms_schema")
+// }
+
+// enum ModuleName {
+//   STUDENTS
+//   COLLEGE
+//   COURSES
+//   FREELANCING
+//   JOBS
+//   NEWS
+//   COMMUNITY
+//   FEEDBACK
+
+//   @@schema("statistics_schema")
+// }
+
+// enum FeedbackType {
+//   BUG
+//   FEATURE
+//   IMPROVEMENT
+//   COMPLAINT
+//   PRAISE
+
+//   @@schema("feedback_schema")
+// }
+
+// enum FeedbackCategory {
+//   TECHNICAL
+//   USABILITY
+//   CONTENT
+//   PERFORMANCE
+//   SECURITY
+
+//   @@schema("feedback_schema")
+// }
+
+// enum FeedbackStatus {
+//   PENDING
+//   REVIEWING
+//   RESOLVED
+//   REJECTED
+
+//   @@schema("feedback_schema")
+// }
+
+// enum Sentiment {
+//   POSITIVE
+//   NEUTRAL
+//   NEGATIVE
+
+//   @@schema("feedback_schema")
+// }
+
+// enum NotificationType {
+//   FRIEND_REQUEST
+//   POST_LIKE
+//   POST_COMMENT
+//   POST_SHARE
+//   MENTION
+//   GROUP_INVITE
+//   COURSE_UPDATE
+//   ASSIGNMENT_DUE
+//   GRADE_POSTED
+//   EXAM_SCHEDULED
+//   ATTENDANCE_ALERT
+//   JOB_MATCH
+//   JOB_APPLICATION
+//   INTERVIEW_SCHEDULED
+//   PROJECT_UPDATE
+//   ROOM_MESSAGE
+//   ROOM_MENTION
+//   ROOM_INVITE
+//   COMMUNITY_UPDATE
+//   SYSTEM_ALERT
+//   SECURITY_ALERT
+//   MAINTENANCE
+//   VERIFICATION
+
+//   @@schema("notification_schema")
+// }
+
+// enum NotificationCategory {
+//   SOCIAL
+//   ACADEMIC
+//   CAREER
+//   COMMUNITY
+//   SYSTEM
+//   SECURITY
+
+//   @@schema("notification_schema")
+// }
+
+// enum NotificationPriority {
+//   URGENT
+//   HIGH
+//   NORMAL
+//   LOW
+
+//   @@schema("notification_schema")
+// }
+
+// enum ChannelType {
+//   IN_APP
+//   PUSH
+//   EMAIL
+//   SMS
+//   WEB_PUSH
+
+//   @@schema("notification_schema")
+// }
+
+// enum DeliveryStatus {
+//   PENDING
+//   DELIVERED
+//   FAILED
+//   RETRYING
+//   CANCELLED
+
+//   @@schema("notification_schema")
+// }
+
+// enum InteractionType {
+//   VIEW
+//   CLICK
+//   ACTION
+//   DISMISS
+//   MUTE
+//   ARCHIVE
+
+//   @@schema("notification_schema")
+// }

@@ -1,0 +1,280 @@
+# ==========================================
+# EDU MATRIX INTERLINKED - DOCKER COMPOSE
+# ==========================================
+# Latest official Docker configurations for all services (May 2025)
+
+services:  # ==========================================
+  # POSTGRESQL 17 - LATEST OFFICIAL CONFIG
+  # ==========================================
+  postgres:
+    image: postgres:17-alpine
+    container_name: edu-matrix-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      # Simple authentication fix - no custom config files needed
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - edu-matrix-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+  # ==========================================
+  # REDIS 7.4 - LATEST OFFICIAL CONFIG
+  # ==========================================
+  redis:
+    image: redis:7.4-alpine
+    container_name: edu-matrix-redis
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: |
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 300
+      --timeout 0
+      --tcp-backlog 511
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --rdbcompression yes
+      --rdbchecksum yes
+      --stop-writes-on-bgsave-error yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - edu-matrix-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 20s 
+  # ==========================================
+  # APACHE KAFKA 4.0 - KRAFT MODE (NO ZOOKEEPER)
+  # ==========================================
+  kafka:
+    image: apache/kafka:4.0.0
+    container_name: edu-matrix-kafka-4
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # KRaft Mode Configuration (Kafka 4.0 Feature)
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      
+      # Kafka 4.0 Enhanced Features
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      
+      # Kafka 4.0 Performance Optimizations
+      KAFKA_LOG_CLEANUP_POLICY: delete
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+      KAFKA_MESSAGE_MAX_BYTES: 1000000
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 1048576
+      
+      # Kafka 4.0 Enhanced Security
+      KAFKA_SECURITY_PROTOCOL: PLAINTEXT
+      KAFKA_SASL_ENABLED_MECHANISMS: PLAIN
+        # Kafka 4.0 Observability Features
+      KAFKA_JMX_PORT: 9999
+      KAFKA_JMX_HOSTNAME: localhost
+      
+      # Storage and Memory Optimization
+      KAFKA_HEAP_OPTS: "-Xmx1G -Xms1G"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+      - "9093:9093"
+      - "9999:9999"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+      - kafka_config:/opt/kafka/config
+    networks:
+      - edu-matrix-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==========================================
+  # KAFKA UI - ALTERNATIVE MANAGEMENT INTERFACE  
+  # ==========================================
+  kafka-ui:
+    container_name: edu-matrix-kafka-ui
+    image: obsidiandynamics/kafdrop:latest
+    restart: unless-stopped
+    ports:
+      - "8080:9000"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERCONNECT: kafka:9092
+      JVM_OPTS: "-Xms32M -Xmx64M"
+      SERVER_SERVLET_CONTEXTPATH: "/"
+    networks:
+      - edu-matrix-network
+      
+  # ==========================================
+  # REDIS COMMANDER - OFFICIAL REDIS UI
+  # ==========================================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: edu-matrix-redis-ui    
+    restart: unless-stopped
+    depends_on:
+      - redis
+    env_file:
+      - .env
+    environment:
+      REDIS_HOSTS: local:redis:6379:0:${REDIS_PASSWORD}
+    ports:
+      - "8081:8081"
+    networks:
+      - edu-matrix-network
+  # ==========================================
+  # SOCKET.IO STANDALONE SERVER - 100% REALTIME FEATURES
+  # ==========================================
+  socketio:
+    image: socketio-standalone:latest
+    build:
+      context: ./socketio-standalone-server
+      dockerfile: Dockerfile
+    container_name: edu-matrix-socketio
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      # Enable Services
+      REDIS_ENABLED: "true"
+      KAFKA_ENABLED: "true"
+      
+      # Server Configuration
+      NODE_ENV: production
+      SOCKET_IO_PORT: 3001
+      SOCKET_IO_HOST: 0.0.0.0
+      SOCKET_IO_CORS_ORIGIN: http://localhost:3000,http://host.docker.internal:3000
+      
+      # Redis Configuration (using main project Redis)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      
+      # Kafka Configuration (using main project Kafka)
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_ID: edu-matrix-socketio
+      KAFKAJS_NO_PARTITIONER_WARNING: 1
+      
+      # Database Configuration (using main project PostgreSQL)
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      
+      # NextAuth Configuration (for standalone mode)
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      
+      # Security
+      JWT_SECRET: ${JWT_SECRET}
+      BCRYPT_ROUNDS: 12
+      
+      # Internal API Configuration
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      
+      # Performance
+      MAX_CONNECTIONS: 1000
+      PING_TIMEOUT: 60000
+      PING_INTERVAL: 25000
+      
+      # Features
+      ENABLE_VIDEO_CALLS: true
+      ENABLE_FILE_SHARING: true
+      ENABLE_SCREEN_SHARING: true
+      ENABLE_LIVE_STREAMING: true
+      
+      # Logging
+      LOG_LEVEL: info
+      NODE_OPTIONS: "--max-old-space-size=2048 --enable-source-maps"
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./logs/socketio:/app/logs
+      - ./socketio-standalone-server/uploads:/app/uploads
+    networks:
+      - edu-matrix-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2GB
+          cpus: '2.0'
+        reservations:
+          memory: 1GB
+          cpus: '1.0'
+
+# ==========================================
+# VOLUMES FOR PERSISTENT DATA
+# ==========================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  kafka_data:
+    driver: local
+  kafka_config:
+    driver: local
+
+# ==========================================
+# NETWORK FOR SERVICE COMMUNICATION
+# ==========================================
+networks:
+  edu-matrix-network:
+    driver: bridge

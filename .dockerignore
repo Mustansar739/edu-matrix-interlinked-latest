@@ -1,0 +1,85 @@
+# ==========================================
+# DOCKER IGNORE FOR SOCKET.IO CONTAINER
+# ==========================================
+
+# Node modules (will be installed fresh in container)
+**/node_modules
+**/.pnpm-store
+node_modules/
+socketio-standalone-server/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# Lock files (we'll install fresh)
+package-lock.json
+yarn.lock
+# pnpm-lock.yaml  # Commented out - needed for dependency resolution
+
+# Next.js build output (not needed for Socket.io)
+.next
+out
+build
+dist
+
+# Environment files (secrets)
+.env*
+!.env.example
+!socketio-standalone-server/.env.example
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation (not needed in container, except server readme)
+docs/
+*.md
+README.md
+!socketio-standalone-server/README.md
+
+# Development files
+temp_backup/
+scripts/
+logs/
+
+# Cache directories
+.cache/
+.parcel-cache/
+.nuxt/
+
+# Docker files (avoid recursion)
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory
+coverage/
+*.lcov
+
+# Temporary folders
+tmp/
+temp/

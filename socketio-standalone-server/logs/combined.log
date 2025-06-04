@@ -1,0 +1,3 @@
+2025-05-31 11:53:08 [INFO]: ✅ PostgreSQL client connected 
+2025-05-31 11:53:08 [INFO]: ✅ PostgreSQL connection test successful: {"now":"2025-05-31T18:53:08.727Z"}
+2025-05-31 11:53:09 [INFO]: 🔄 PostgreSQL client removed 
